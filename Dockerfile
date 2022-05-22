@@ -17,7 +17,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && DEBIAN_FRONTEND=noninter
  default-jre
 
 RUN pip install --upgrade pip
-RUN pip install requests pyspark pytest
+RUN pip install requests pytest networkx[default]
+
 
 #copy the entrypoint/config file and make sure it can execute
 COPY entrypoint.sh /root
