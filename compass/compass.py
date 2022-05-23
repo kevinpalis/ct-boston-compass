@@ -16,8 +16,6 @@ from util.bc_utility import *
 
 def main(argv):
     isVerbose = True
-    G = nx.Graph()
-
 
     apiKey = 'aebae14aadde49629df26f2f72ed2d57'
     #filter by type 0 and 1 which is light rail and heavy rail respectively
@@ -44,13 +42,11 @@ def main(argv):
     # # that as the web service handles all those for us.
     subwayRouteNames = {}
     if routesResp.status_code == requests.codes.ok:
-        if isVerbose:
-            print ("All subway routes fetched successfully.")
         for r in routesResp.json()['data']:
             #debug
             #print(f"Route LongName = {r['attributes']['long_name']}, ID={r['id']}")
             subwayRouteNames[r['id']] = r['attributes']['long_name']
-    print("Subway Routes: ")
+    print("\nAll Subway Routes: ")
     print(", ".join(subwayRouteNames.values()))
     #print (response.json())
 
@@ -62,6 +58,9 @@ def main(argv):
     #https://api-v3.mbta.com/stops?include=route&filter%5Broute%5D=Red #sample api call
     subwayStopsCount = {}
     stops = {} #dictionary of all the stops with the routes that stop at them as values
+    #graph to store stops as vertices/nodes
+    bostonSubway = nx.Graph()
+    prevNode = None
     #for each route, get all the stops
     for routeId in subwayRouteNames:
         params = {'filter[route]': routeId, 'include': 'route', 'fields[stops]': 'name'}
@@ -71,23 +70,43 @@ def main(argv):
             #print (f"All stops routes fetched successfully for route {subwayRouteNames[routeId]}.")
             subwayStopsCount[subwayRouteNames[routeId]] = 0
             for sr in stopsResp.json()['data']:
-                 #print(f"Stop Name= {sr['attributes']['name']}, ID={sr['id']}")
-                 subwayStopsCount[subwayRouteNames[routeId]]+=1
-                 stops = upsertValuesToDict(stops, sr['attributes']['name'], [subwayRouteNames[routeId]])
+                #print(f"Stop Name= {sr['attributes']['name']}, ID={sr['id']}")
+                subwayStopsCount[subwayRouteNames[routeId]]+=1
+                stops = upsertValuesToDict(stops, sr['attributes']['name'], [subwayRouteNames[routeId]])
+                if prevNode is not None:
+                    #debug - prints all edges as they are being added:
+                    #print (f"Adding edge from {prevNode} to {sr['attributes']['name']} with attribute {subwayRouteNames[routeId]}")
+                    bostonSubway.add_edge(prevNode, sr['attributes']['name'], route=subwayRouteNames[routeId])
+                prevNode = sr['attributes']['name']
+            prevNode = None
+
     if isVerbose:
-        print (f"Tally of all the routes' stops: {subwayStopsCount}")
+        print (f"\nTally of all the routes' stops: {subwayStopsCount}")
     maxStopsRoute = max(subwayStopsCount, key=subwayStopsCount.get)
-    print (f"Route with the most stops: {maxStopsRoute} has {subwayStopsCount[maxStopsRoute]} stops.")
+    print (f"\nRoute with the most stops: {maxStopsRoute} has {subwayStopsCount[maxStopsRoute]} stops.")
     minStopsRoute = min(subwayStopsCount, key=subwayStopsCount.get)
     print (f"Route with the least stops: {minStopsRoute} has {subwayStopsCount[minStopsRoute]} stops.")
     #print (stopsResp.json())
     #print(stops)
+    
     print ("\n******************** Stops that connect two or more subway routes ********************")
     for stopName in stops:
         #debug
         #print (f"Number of routes that stop in {stopName} = {len(stops[stopName])}")
         if len(stops[stopName]) > 1:
             print (f"{stopName} connects: {', '.join(stops[stopName])}")
+    #debug:
+    print (f"\nBostonSubway Graph: {bostonSubway}")
+    print (f"Sample edge with data: Revere Beach -> Wonderland  = {bostonSubway.edges['Revere Beach','Wonderland']}")
+    #This is the solution to question #3: List a rail route you could travel to get from one stop (src) to the other (dest).
+    path = nx.shortest_path(bostonSubway, source="Ashmont", target="Arlington")
+    routeList = set()
+    prevStop = None
+    for p in path:
+        if prevStop is not None:
+            routeList.add(bostonSubway.edges[prevStop, p]['route'])
+        prevStop = p
+    print (f"Path found: {path} | Routes used: {routeList}")
 
 def upsertValuesToDict(uDict, uKey, uValues):
     #Upsert values to dictionary where value is a list
