@@ -62,27 +62,32 @@ def main(argv):
     #https://api-v3.mbta.com/stops?include=route&filter%5Broute%5D=Red #sample api call
     subwayStopsCount = {}
     stops = {} #dictionary of all the stops with the routes that stop at them as values
+    #for each route, get all the stops
     for routeId in subwayRouteNames:
         params = {'filter[route]': routeId, 'include': 'route', 'fields[stops]': 'name'}
         stopsResp = requests.get(stopsEndpoint, headers=headers, params=params, timeout=timeout)
         if stopsResp.status_code == requests.codes.ok:
-            print (f"All stops routes fetched successfully for route {subwayRouteNames[routeId]}.")
+            #debug
+            #print (f"All stops routes fetched successfully for route {subwayRouteNames[routeId]}.")
             subwayStopsCount[subwayRouteNames[routeId]] = 0
             for sr in stopsResp.json()['data']:
                  #print(f"Stop Name= {sr['attributes']['name']}, ID={sr['id']}")
                  subwayStopsCount[subwayRouteNames[routeId]]+=1
                  stops = upsertValuesToDict(stops, sr['attributes']['name'], [subwayRouteNames[routeId]])
-    print (subwayStopsCount)
+    if isVerbose:
+        print (f"Tally of all the routes' stops: {subwayStopsCount}")
     maxStopsRoute = max(subwayStopsCount, key=subwayStopsCount.get)
-    print (f"Max stops route: {maxStopsRoute} with {subwayStopsCount[maxStopsRoute]} stops.")
+    print (f"Route with the most stops: {maxStopsRoute} has {subwayStopsCount[maxStopsRoute]} stops.")
     minStopsRoute = min(subwayStopsCount, key=subwayStopsCount.get)
-    print (f"Min stops route: {minStopsRoute} with {subwayStopsCount[minStopsRoute]} stops.")
+    print (f"Route with the least stops: {minStopsRoute} has {subwayStopsCount[minStopsRoute]} stops.")
     #print (stopsResp.json())
     #print(stops)
+    print ("\n******************** Stops that connect two or more subway routes ********************")
     for stopName in stops:
-        print (f"Number of routes that stop in {stopName} = {len(stops[stopName])}")
+        #debug
+        #print (f"Number of routes that stop in {stopName} = {len(stops[stopName])}")
         if len(stops[stopName]) > 1:
-            print (stops[stopName])
+            print (f"{stopName} connects: {', '.join(stops[stopName])}")
 
 def upsertValuesToDict(uDict, uKey, uValues):
     #Upsert values to dictionary where value is a list
