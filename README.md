@@ -64,8 +64,8 @@ python3 compass.py
 #Run the compass with default values and higher verbosity
 python3 compass.py -v
 
-#Run the compass with default values and higher verbosity
-python3 compass.py -v
+#Run the compass to find routes between source and destination stops (verbose)
+python3 compass.py -s "Davis" -d "Butler" -v
 
 #Show all subway stops (to see all valid values for source and destination)
 python3 compass.py -a
