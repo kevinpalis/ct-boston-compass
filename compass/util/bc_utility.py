@@ -24,6 +24,8 @@ class ReturnCodes:
 	NO_FILTERS_APPLIED_TO_TARGET = 10
 	ID_DUPLICATED = 11
 	ID_INVALID = 12
+	API_CALL_FAILED = 13
+	INVALID_VERTEX = 14
 	MESSAGES = {
 		SUCCESS: "Operation completed successfully.",
 		INCOMPLETE_PARAMETERS: "There were fewer parameters passed than what is required. Please check the usage help (-h).",
@@ -37,7 +39,9 @@ class ReturnCodes:
 		NO_PATH_FOUND: "No path can be derived between the two vertices given. Both direct descendants and common relative algorithms have been exhausted.",
 		NO_FILTERS_APPLIED_TO_TARGET: "The filters selected did not reduce a non-entry vertex. Aborting to avoid a potentially huge query.",
 		ID_DUPLICATED: "A duplicate ID was found.",
-		ID_INVALID: "ID provided is not valid. Please provide a valid ID (positive integer)."
+		ID_INVALID: "ID provided is not valid. Please provide a valid ID (positive integer).",
+		API_CALL_FAILED: "API call failed. Check the HTTP status code.",
+		INVALID_VERTEX: "The vertex provided is invalid."
 	}
 
 

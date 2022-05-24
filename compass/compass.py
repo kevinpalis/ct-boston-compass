@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
 '''
 	This is the main module for Boston-compass. This covers all my solution to Broad's coding questions.
-    
+    There are 3 parts to this module that will always execute no matter what parameters were passed:
+    1. Print all long_names of all routes of type 0 and 1, ie. subway routes
+    2. Print:
+        > The name of the subway route with the most stops as well as a count of its stops.
+        > The name of the subway route with the fewest stops as well as a count of its stops.
+        > A list of the stops that connect two or more subway routes along with the relevant route names for each of those stops. 
+    3. List a rail route you could travel to get from one stop (source) to the other (destination).
+
+    Run the script with the -h flag to see all the parameters along with their descriptions. 
+    You can also just run the script without any parameter and it will execute everything using the default values.
+
+    Example usage: python3 compass.py -s "Davis" -d "Butler" -v
     @author Kevin Palis <kevin.palis@gmail.com>
 '''
 
 import requests
-import json
 import networkx as nx
 import sys
 import getopt
@@ -16,17 +26,16 @@ from util.bc_utility import *
 
 def main(argv):
     isVerbose = False
-
-    apiKey = 'aebae14aadde49629df26f2f72ed2d57'
-    #filter by type 0 and 1 which is light rail and heavy rail respectively
+    apiKey = 'aebae14aadde49629df26f2f72ed2d57' #default API key, created for the sole purpose of this coding test
+    #endpoints we'll need throughout this module
     routesEndpoint = " https://api-v3.mbta.com/routes"
     stopsEndpoint = " https://api-v3.mbta.com/stops"
+    #default values
     source = "Davis"
     destination = "Kendall/MIT"
     showAllStops = False
-    #https://api-v3.mbta.com/stops?include=route&filter%5Broute%5D=Red
     timeout = 180
-    #apiEndpoint = " https://api-v3.mbta.com/routes?filr[type]=0,1"
+
     #Get and parse parameters
     try:
         #print ("python3 compass.py -k <apiKey:string> -s <source:string> -d <destination:string> -a <showAllSubwayStops> -v")
@@ -48,16 +57,12 @@ def main(argv):
             showAllStops = True
         elif opt in ("-v", "--verbose"):
             isVerbose = True
-    #8 routes
+    #default api-key is used if not passed as param
     headers = {"x-api-key" : apiKey}
     params = {'filter[type]': '0,1', 'fields[route]': 'long_name,id'}
     routesResp = requests.get(routesEndpoint, headers=headers, params=params, timeout=timeout)
     if isVerbose:
         print(f"API call: {routesResp.url}")
-    #print(json.dumps(response.json(), indent=2))
-    #print(response.json())
-    #print(response.headers)
-    #print(response.status_code)
 
     #The solution to question #1: Print all long_names of all routes of type 0 and 1, ie. subway routes
     #I'm using the filtering on the server-side here, ie. as parameter to the API call. This is better because it avoids unnecessary passing of data that can saturate the network and make everything slower
@@ -70,7 +75,10 @@ def main(argv):
             #debug
             #print(f"Route LongName = {r['attributes']['long_name']}, ID={r['id']}")
             subwayRouteNames[r['id']] = r['attributes']['long_name']
-    print("\nAll Subway Routes: ")
+    else:
+        print (f"API call failed! Status code={routesResp.status_code}")
+        return ReturnCodes.API_CALL_FAILED
+    print("\n******************** Q1: All Subway Routes ********************")
     print(", ".join(subwayRouteNames.values()))
     #print (response.json())
 
@@ -84,7 +92,10 @@ def main(argv):
     #graph to store stops as vertices/nodes
     bostonSubway = nx.Graph()
     prevNode = None
-    #for each route, get all the stops
+    print("\n******************** Q2: Stops Info ********************")
+    #For each route, get all the stops. We also build our graph in this loop to save time and space.
+    #Our graph structure: nodes=stops, edges=routes (and we store route names as edge attribute).
+    #Lastly, we track the number of stops per route so we also save an extra API call and won't need to iterate again.
     for routeId in subwayRouteNames:
         params = {'filter[route]': routeId, 'include': 'route', 'fields[stops]': 'name'}
         stopsResp = requests.get(stopsEndpoint, headers=headers, params=params, timeout=timeout)
@@ -93,7 +104,7 @@ def main(argv):
             #print (f"All stops routes fetched successfully for route {subwayRouteNames[routeId]}.")
             subwayStopsCount[subwayRouteNames[routeId]] = 0
             for sr in stopsResp.json()['data']:
-                #print(f"Stop Name= {sr['attributes']['name']}, ID={sr['id']}")
+                #print(f"Stop Name= {sr['attributes']['name']}, ID={sr['id']}") #debug
                 subwayStopsCount[subwayRouteNames[routeId]]+=1
                 stops = upsertValuesToDict(stops, sr['attributes']['name'], [subwayRouteNames[routeId]])
                 if prevNode is not None:
@@ -102,17 +113,21 @@ def main(argv):
                     bostonSubway.add_edge(prevNode.lower(), sr['attributes']['name'].lower(), route=subwayRouteNames[routeId])
                 prevNode = sr['attributes']['name']
             prevNode = None
+        else:
+            print (f"API call failed! Status code={stopsResp.status_code}")
+            return ReturnCodes.API_CALL_FAILED
 
     if isVerbose:
         print (f"\nTally of all the routes' stops: {subwayStopsCount}")
+    #get and print the route with the most stops
     maxStopsRoute = max(subwayStopsCount, key=subwayStopsCount.get)
     print (f"\nRoute with the most stops: {maxStopsRoute} has {subwayStopsCount[maxStopsRoute]} stops.")
+    #get and print the route with the least stops
     minStopsRoute = min(subwayStopsCount, key=subwayStopsCount.get)
     print (f"Route with the least stops: {minStopsRoute} has {subwayStopsCount[minStopsRoute]} stops.")
-    #print (stopsResp.json())
-    #print(stops)
-    
-    print ("\n******************** Stops that connect two or more subway routes ********************")
+
+    #get and print all the stops that connect two or more routes
+    print ("\n---Stops that connect two or more subway routes---")
     for stopName in stops:
         #debug
         #print (f"Number of routes that stop in {stopName} = {len(stops[stopName])}")
@@ -123,9 +138,18 @@ def main(argv):
     #print (f"Sample edge with data: Revere Beach -> Wonderland  = {bostonSubway.edges['revere beach','wonderland']}")
     
     #This is the solution to question #3: List a rail route you could travel to get from one stop (src) to the other (dest).
-    path = nx.shortest_path(bostonSubway, source=source.lower(), target=destination.lower())
+    print("\n******************** Q3: Route Finder ********************")
+    #For unweighted graph like this one, the shortest_path method use breadth-first search algorithm (BFS). 
+    #In contrast, networkx will use Dijkstra's algoright for weighted graphs. For a real application, it may make more sense to make this a weighted graph, where weight=time it takes from one stop to another.
+    try:
+        path = nx.shortest_path(bostonSubway, source=source.lower(), target=destination.lower())
+    except Exception as e:
+        print(f"Invalid source or destination name! Error:{e}")
+        return ReturnCodes.INVALID_VERTEX
+    #Using set here to only keep unique list of routes
     routeList = set()
     prevStop = None
+    #Iterate through the path found (while )
     for p in path:
         if prevStop is not None:
             routeList.add(bostonSubway.edges[prevStop, p]['route'])
@@ -135,6 +159,8 @@ def main(argv):
     print (f"\n{source} to {destination} -> {', '.join(routeList)}")
     if showAllStops:
         showAllSubwayStops(apiKey, headers, timeout, stopsEndpoint, isVerbose)
+    
+    return ReturnCodes.SUCCESS
 
 def upsertValuesToDict(uDict, uKey, uValues):
     #Upsert values to dictionary where value is a list
@@ -148,12 +174,15 @@ def showAllSubwayStops(key, headers, timeout, stopsEndpoint, isVerbose):
     stopsResp = requests.get(stopsEndpoint, headers=headers, params=params, timeout=timeout)
     if isVerbose:
         print(f"API call: {stopsResp.url}")
-    print (f"Printing all subway stops: ")
+    print (f"\nPrinting all subway stops: ")
     if stopsResp.status_code == requests.codes.ok:
         for sr in stopsResp.json()['data']:
             print(f"{sr['attributes']['name']}")
+    else:
+        print (f"API call failed! Status code={stopsResp.status_code}")
+        return ReturnCodes.API_CALL_FAILED
 
-#utility method for exception handling
+#utility method for exception handling - used when system exit codes are more relevant, ex. CLIs.
 def exitWithException(eCode):
     try:
         raise BCException(eCode)
@@ -165,12 +194,11 @@ def exitWithException(eCode):
 
 #prints usage help
 def printUsageHelp(eCode):
-    print (eCode)
-    print ("python3 compass.py -k <apiKey:string> -s <source:string> -d <destination:string> -a <showAllSubwayStops> -v <verbose>")
+    print ("python3 compass.py -k <apiKey:string> -s <source:string> -d <destination:string> -a -v")
     print ("\t-h = Usage help")
     print ("\t-k or --apiKey = (OPTIONAL) This overrides the default api_key. Make sure it's valid as there is a 20 requests per limit without a key (as opposed to 1000 requests/minute with a key)")
-    print ("\t-s or --source = (OPTIONAL) This overrides the default source stop (default: Davis). Make sure it's valid as there is a 20 requests per limit without a key (as opposed to 1000 requests/minute with a key)")
-    print ("\t-d or --destination = (OPTIONAL) This overrides the default destination stop (default: Kendall/MIT). Make sure it's valid as there is a 20 requests per limit without a key (as opposed to 1000 requests/minute with a key)")
+    print ("\t-s or --source = (OPTIONAL) This sets the source stop (default: Davis). Wrap with quotation marks if the name has spaces.")
+    print ("\t-d or --destination = (OPTIONAL) This sets the destination stop (default: Kendall/MIT). Wrap with quotation marks if the name has spaces.")
     print ("\t-a or --showAllSubwayStops = (OPTIONAL) Print all the subway stops. This is mainly for reference in case the user needs to check the name of the stop to pass to source or destination.")
     print ("\t-v or --verbose = (OPTIONAL) Print the status of BC execution in more detail.")
     print ("\tNOTE: You can also just run the script without any parameter and it will execute everything using the default values.")
