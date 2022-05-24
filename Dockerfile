@@ -5,7 +5,7 @@
 #WORKDIR /toolbox
 
 FROM ubuntu:20.04
-#update and install utility packages, pip, and java
+#update and install utility packages, pip
 RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y \
  sudo \
  wget \
@@ -13,8 +13,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && DEBIAN_FRONTEND=noninter
  vim \
  coreutils \
  curl \
- python3-pip \
- default-jre
+ python3-pip
 
 RUN pip install --upgrade pip
 RUN pip install requests pytest networkx[default]
