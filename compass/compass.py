@@ -33,13 +33,14 @@ def main(argv):
     #default values
     source = "Davis"
     destination = "Kendall/MIT"
+    excludeRoute = ""
     showAllStops = False
     timeout = 180
 
     #Get and parse parameters
     try:
         #print ("python3 compass.py -k <apiKey:string> -s <source:string> -d <destination:string> -a <showAllSubwayStops> -v")
-        opts, args = getopt.getopt(argv, "hk:s:d:av", ["apiKey=", "source=", "destination=", "showAllRoutes=", "verbose"])
+        opts, args = getopt.getopt(argv, "hk:s:d:ax:v", ["apiKey=", "source=", "destination=", "showAllRoutes=", "exclude=", "verbose"])
         #print (opts, args)
     except getopt.GetoptError:
         # print ("OptError: %s" % (str(e1)))
@@ -55,6 +56,8 @@ def main(argv):
             destination = arg
         elif opt in ("-a", "--showAllRoutes"):
             showAllStops = True
+        elif opt in ("-x", "--exclude"):
+            excludeRoute = arg
         elif opt in ("-v", "--verbose"):
             isVerbose = True
     #default api-key is used if not passed as param
@@ -96,6 +99,8 @@ def main(argv):
     #For each route, get all the stops. We also build our graph in this loop to save time and space.
     #Our graph structure: nodes=stops, edges=routes (and we store route names as edge attribute).
     #Lastly, we track the number of stops per route so we also save an extra API call and won't need to iterate again.
+    if isVerbose:
+        print(f"Excluding route(s): {excludeRoute}")
     for routeId in subwayRouteNames:
         params = {'filter[route]': routeId, 'include': 'route', 'fields[stops]': 'name'}
         stopsResp = requests.get(stopsEndpoint, headers=headers, params=params, timeout=timeout)
@@ -110,7 +115,8 @@ def main(argv):
                 if prevNode is not None:
                     #debug - prints all edges as they are being added:
                     #print (f"Adding edge from {prevNode} to {sr['attributes']['name']} with attribute {subwayRouteNames[routeId]}")
-                    bostonSubway.add_edge(prevNode.lower(), sr['attributes']['name'].lower(), route=subwayRouteNames[routeId])
+                    if subwayRouteNames[routeId] != excludeRoute:
+                        bostonSubway.add_edge(prevNode.lower(), sr['attributes']['name'].lower(), route=subwayRouteNames[routeId])
                 prevNode = sr['attributes']['name']
             prevNode = None
         else:
@@ -140,11 +146,12 @@ def main(argv):
     #This is the solution to question #3: List a rail route you could travel to get from one stop (src) to the other (dest).
     print("\n******************** Q3: Route Finder ********************")
     #For unweighted graph like this one, the shortest_path method use breadth-first search algorithm (BFS). 
-    #In contrast, networkx will use Dijkstra's algoright for weighted graphs. For a real application, it may make more sense to make this a weighted graph, where weight=time it takes from one stop to another.
+    #In contrast, networkx will use Dijkstra's algorithm for weighted graphs. For a real application, it may make more sense to make this a weighted graph, where weight=time it takes from one stop to another.
     try:
         path = nx.shortest_path(bostonSubway, source=source.lower(), target=destination.lower())
     except Exception as e:
-        print(f"Invalid source or destination name! Error:{e}")
+        print(f"No path found from {source} to {destination}")
+        #print(f"Invalid source or destination name! Error:{e}")
         return ReturnCodes.INVALID_VERTEX
     #Using set here to only keep unique list of routes
     routeList = set()
@@ -200,6 +207,7 @@ def printUsageHelp(eCode):
     print ("\t-s or --source = (OPTIONAL) This sets the source stop (default: Davis). Wrap with quotation marks if the name has spaces.")
     print ("\t-d or --destination = (OPTIONAL) This sets the destination stop (default: Kendall/MIT). Wrap with quotation marks if the name has spaces.")
     print ("\t-a or --showAllSubwayStops = (OPTIONAL) Print all the subway stops. This is mainly for reference in case the user needs to check the name of the stop to pass to source or destination.")
+    print ("\t-x or --exclude = (OPTIONAL) Exclude a route (ex. route is under maintenance).")
     print ("\t-v or --verbose = (OPTIONAL) Print the status of BC execution in more detail.")
     print ("\tNOTE: You can also just run the script without any parameter and it will execute everything using the default values.")
     if eCode == ReturnCodes.SUCCESS:
